@@ -103,6 +103,10 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
             success = throw_init(ignore_checks);
             break;
 
+        case SKIRT:
+            success = skirt_init(ignore_checks);
+            break;
+
         default:
             success = false;
             break;
@@ -112,7 +116,7 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
     if (success) {
         // perform any cleanup required by previous flight mode
         exit_mode(control_mode, mode);
-        
+
         prev_control_mode = control_mode;
         prev_control_mode_reason = control_mode_reason;
 
@@ -222,6 +226,10 @@ void Copter::update_flight_mode()
 
         case THROW:
             throw_run();
+            break;
+
+        case SKIRT:
+            skirt_run();
             break;
 
         default:
@@ -400,4 +408,3 @@ void Copter::print_flight_mode(AP_HAL::BetterStream *port, uint8_t mode)
         break;
     }
 }
-
