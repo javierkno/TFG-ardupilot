@@ -86,16 +86,16 @@ bool Copter::start_command(const AP_Mission::Mission_Command& cmd)
     case MAV_CMD_DO_SET_SERVO:
         ServoRelayEvents.do_set_servo(cmd.content.servo.channel, cmd.content.servo.pwm);
         break;
-        
+
     case MAV_CMD_DO_SET_RELAY:
         ServoRelayEvents.do_set_relay(cmd.content.relay.num, cmd.content.relay.state);
         break;
-        
+
     case MAV_CMD_DO_REPEAT_SERVO:
         ServoRelayEvents.do_repeat_servo(cmd.content.repeat_servo.channel, cmd.content.repeat_servo.pwm,
                                          cmd.content.repeat_servo.repeat_count, cmd.content.repeat_servo.cycle_time * 1000.0f);
         break;
-        
+
     case MAV_CMD_DO_REPEAT_RELAY:
         ServoRelayEvents.do_repeat_relay(cmd.content.repeat_relay.num, cmd.content.repeat_relay.repeat_count,
                                          cmd.content.repeat_relay.cycle_time * 1000.0f);
@@ -307,7 +307,7 @@ void Copter::do_nav_wp(const AP_Mission::Mission_Command& cmd)
             target_loc.set_alt_cm(current_loc.alt, current_loc.get_alt_frame());
         }
     }
-    
+
     // this will be used to remember the time in millis after we reach or pass the WP.
     loiter_time = 0;
     // this is the delay, stored in seconds
@@ -948,7 +948,7 @@ void Copter::log_picture()
     } else {
         if (should_log(MASK_LOG_CAMERA)) {
             DataFlash.Log_Write_Trigger(ahrs, gps, current_loc);
-        }      
+        }
     }
 }
 

@@ -269,7 +269,7 @@ void Copter::auto_wp_run()
 // auto_spline_start - initialises waypoint controller to implement flying to a particular destination using the spline controller
 //  seg_end_type can be SEGMENT_END_STOP, SEGMENT_END_STRAIGHT or SEGMENT_END_SPLINE.  If Straight or Spline the next_destination should be provided
 void Copter::auto_spline_start(const Location_Class& destination, bool stopped_at_start,
-                               AC_WPNav::spline_segment_end_type seg_end_type, 
+                               AC_WPNav::spline_segment_end_type seg_end_type,
                                const Location_Class& next_destination)
 {
     auto_mode = Auto_Spline;
@@ -783,4 +783,3 @@ float Copter::get_auto_heading(void)
         break;
     }
 }
-

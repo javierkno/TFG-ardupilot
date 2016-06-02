@@ -403,6 +403,9 @@ void Copter::print_flight_mode(AP_HAL::BetterStream *port, uint8_t mode)
     case THROW:
         port->print("THROW");
         break;
+    case SKIRT:
+        port->print("SKIRT");
+        break;
     default:
         port->printf("Mode(%u)", (unsigned)mode);
         break;
