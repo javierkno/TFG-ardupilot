@@ -405,9 +405,16 @@ private:
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
     // Skirt
+    SkirtMode skirt_mode;
     uint16_t comm_index = 0;
     Location waypoint_loc;
     float skirt_radius = 50 * 100;
+    AP_Mission::Mission_Command com;
+    Vector3f loc_vector;
+    Vector3f loc_vector_ant;
+    // solo para pruebas, borrar en acabar
+    Vector3f aux;
+    uint16_t int_prueba;
 
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
@@ -852,8 +859,15 @@ private:
 
     bool skirt_init(bool ignore_checks);
     void skirt_run();
+    void skirt_wp_run();
+    void skirt_circle_run();
+
     float get_heading(void);
-    Vector3f pv_dist_to_vector(const float&, const Vector3f&);
+    void get_next_waypoint();
+    Vector3f pv_dist_to_vector(const float&r, const Vector3f&);
+    Vector3f pv_get_vector_par(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
+    Vector3f pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
+
 
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------

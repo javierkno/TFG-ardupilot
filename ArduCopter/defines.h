@@ -199,6 +199,12 @@ enum AutoMode {
     Auto_Loiter
 };
 
+// Skirt modes
+enum SkirtMode {
+    Skirt_WP,
+    Skirt_Circle
+};
+
 // Guided modes
 enum GuidedMode {
     Guided_TakeOff,
