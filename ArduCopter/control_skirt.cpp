@@ -25,16 +25,18 @@
 bool Copter::skirt_init(bool ignore_checks)
 {
 
+    /*AP_Mission::Mission_Command c;
     uint16_t ind = 0;
-    AP_Mission::Mission_Command com;
     for(bool read = true;read;ind++) {
-      read = mission.read_cmd_from_storage(ind,com);
+      read = mission.read_cmd_from_storage(ind,c);
       // reject switching to skirt mode if there are commands other tan navigation commands
-      if(!mission.is_nav_cmd(com)) {
+      if(!mission.is_nav_cmd(c)) {
         gcs_send_text(MAV_SEVERITY_CRITICAL, "Skirt: All commands must be navigation commands");
         return false;
       }
-    }
+    }*/
+
+    comm_index = 1;
 
     if ((position_ok() && mission.num_commands() > 1) || ignore_checks) {
         //skirt_mode = Auto_Loiter;
@@ -66,15 +68,7 @@ bool Copter::skirt_init(bool ignore_checks)
         //--------   Start                 -----------------------------------------------------------------------------------
         //--------------------------------------------------------------------------------------------------------------------
 
-        mission.read_cmd_from_storage(1,com);
-        loc_vector = pv_location_to_vector(com.content.location);
-        aux = loc_vector;
-        loc_vector_ant = loc_vector;
-        loc_vector = pv_dist_to_vector(skirt_radius, loc_vector);
-        wp_nav.set_wp_destination(loc_vector,false);
-
-
-        int_prueba=2;
+        get_next_waypoint();
 
         //--------------------------------------------------------------------------------------------------------------------
         //--------------------------------------------------------------------------------------------------------------------
@@ -92,24 +86,20 @@ bool Copter::skirt_init(bool ignore_checks)
 //      relies on run_autopilot being called at 10hz which handles decision making and non-navigation related commands
 void Copter::skirt_run()
 {
+    //calc_wp_distance();
+    //std::string s = std::to_string(wp_distance+1);
+    //gcs_send_text(MAV_SEVERITY_NOTICE, s.c_str());
 
-  calc_wp_distance();
-  std::string s = std::to_string(wp_distance+1);
+    // call the correct skirt controller
+    switch (skirt_mode) {
+    case Skirt_WP:
+        skirt_wp_run();
+        break;
 
-
-  gcs_send_text(MAV_SEVERITY_NOTICE, s.c_str());
-  // call the correct skirt controller
-  switch (skirt_mode) {
-
-  case Skirt_WP:
-      skirt_wp_run();
-      break;
-
-  case Skirt_Circle:
-      skirt_circle_run();
-      break;
-  }
-
+    case Skirt_Circle:
+        skirt_circle_run();
+        break;
+    }
 }
 
 
@@ -163,24 +153,9 @@ void Copter::skirt_wp_run()
     //}
 
 
-    if(wp_nav.reached_wp_destination()) {
+    if (wp_nav.reached_wp_destination()) {
 
-      circle_nav.set_center(aux);
-      circle_nav.init(circle_nav.get_center());
-
-      //Vector3f aux = loc_vector;
-      mission.read_cmd_from_storage(int_prueba,com);
-      loc_vector = pv_location_to_vector(com.content.location);
-
-
-
-
-
-      loc_vector = pv_get_vector_perp(aux, loc_vector_ant, loc_vector, skirt_radius);
-      wp_nav.set_wp_destination(loc_vector,false);
-
-      skirt_mode=Skirt_Circle;
-
+      get_next_waypoint();
 
     }
 }
@@ -190,35 +165,35 @@ void Copter::skirt_wp_run()
 void Copter::skirt_circle_run()
 {
 
-  // call circle controller
-  circle_nav.update();
+    // call circle controller
+    circle_nav.update();
 
-  // call z-axis position controller
-  pos_control.update_z_controller();
+    // call z-axis position controller
+    pos_control.update_z_controller();
 
-  // roll & pitch from waypoint controller, yaw rate from pilot
-  attitude_control.input_euler_angle_roll_pitch_yaw(circle_nav.get_roll(), circle_nav.get_pitch(), circle_nav.get_yaw(),true);
+    // roll & pitch from waypoint controller, yaw rate from pilot
+    attitude_control.input_euler_angle_roll_pitch_yaw(circle_nav.get_roll(), circle_nav.get_pitch(), circle_nav.get_yaw(),true);
 
-/*
-  Vector3f dist_to_dest = (curr_pos - Vector3f(0,0,terr_offset)) - _destination;
-  if( dist_to_dest.length() <= _wp_radius_cm ) {
-      _flags.reached_destination = true;
-  }*/
+    /*
+    Vector3f dist_to_dest = (curr_pos - Vector3f(0,0,terr_offset)) - _destination;
+    if( dist_to_dest.length() <= _wp_radius_cm ) {
+        _flags.reached_destination = true;
+    }*/
 
-  if(wp_nav.reached_wp_destination()) {
+    /*std::string s = std::to_string(inertial_nav.get_position().x);
+    std::string s1 = std::to_string(inertial_nav.get_position().y);
+    gcs_send_text(MAV_SEVERITY_NOTICE, ("CURR_POS: "+s+", "+s1).c_str());*/
 
-    gcs_send_text(MAV_SEVERITY_NOTICE, "Skirt: Circle complete");
+    //.length() <= _wp_radius_cm
 
+    //std::string s = std::to_string(pv_get_horizontal_distance_cm(inertial_nav.get_position(), lv_dest_mod));
+    //gcs_send_text(MAV_SEVERITY_NOTICE, ("Distance to wp: "+s).c_str());
 
-    int_prueba = 3;
-    skirt_mode = Skirt_WP;
-    mission.read_cmd_from_storage(1,com);
-    loc_vector = pv_location_to_vector(com.content.location);
-    aux = loc_vector;
-    loc_vector_ant = loc_vector;
-    loc_vector = pv_dist_to_vector(skirt_radius, loc_vector);
-    wp_nav.set_wp_destination(loc_vector,false);
-  }
+    if(pv_get_horizontal_distance_cm(inertial_nav.get_position(), lv_dest_mod) < 300) {
+
+        gcs_send_text(MAV_SEVERITY_NOTICE, "Skirt: Circle complete");
+        get_next_waypoint();
+    }
 }
 
 
@@ -239,40 +214,38 @@ Vector3f Copter::pv_dist_to_vector(const float &rad, const Vector3f &waypoint){
     return vec;
 }
 
-
 Vector3f Copter::pv_get_vector_par(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r) {
     Vector3f vec;
     Vector3f vec2;
     float m = 0;
     float n = 0;
     float first_part = 0;
+    float a = waypoint2.y;
+    float b = waypoint2.x;
 
-    if(waypoint2.x - waypoint1.x != 0 ) {
-      m = (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x);
-      n = origin.y - m * origin.x;
-      first_part = safe_sqrt(-sq(waypoint2.y) + 2*waypoint2.y*waypoint2.x*m + 2*waypoint2.y*n - sq(waypoint2.x)*sq(m) - 2*waypoint2.x*m*n + sq(m)*sq(r) - sq(n) + sq(r));
-      vec.x =     (first_part + waypoint2.y*m + waypoint2.x - m*n) / (sq(m)+1);
-      vec.y =   (m*first_part + waypoint2.y*sq(m) + waypoint2.x*m + n) / (sq(m)+1);
-      vec2.x =   (-first_part + waypoint2.y*m + waypoint2.x - m*n) / (sq(m)+1);
-      vec2.y = (-m*first_part + waypoint2.y*sq(m) + waypoint2.x*m + n) / (sq(m)+1);
-    }
-    else {
-      n = origin.x;
-      first_part = safe_sqrt(-sq(waypoint2.y) + 2*waypoint2.y*waypoint2.x*m + 2*waypoint2.y*n - sq(waypoint2.x)*sq(m) - 2*waypoint2.x*m*n + sq(m)*sq(r) - sq(n) + sq(r));
-      vec.y =     (first_part + waypoint2.y*m + waypoint2.x - m*n) / (sq(m)+1);
-      vec.x =   (m*first_part + waypoint2.y*sq(m) + waypoint2.x*m + n) / (sq(m)+1);
-      vec2.y =   (-first_part + waypoint2.y*m + waypoint2.x - m*n) / (sq(m)+1);
-      vec2.x = (-m*first_part + waypoint2.y*sq(m) + waypoint2.x*m + n) / (sq(m)+1);
+    if (waypoint2.x - waypoint1.x != 0 ) {
+        m = (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x);
+        n = origin.y - m * origin.x;
+        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+        vec.x =     (first_part + a*m + b - m*n) / (sq(m)+1);
+        vec.y =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        vec2.x =   (-first_part + a*m + b - m*n) / (sq(m)+1);
+        vec2.y = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+    } else {
+        n = origin.x;
+        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+        vec.y =     (first_part + a*m + b - m*n) / (sq(m)+1);
+        vec.x =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        vec2.y =   (-first_part + a*m + b - m*n) / (sq(m)+1);
+        vec2.x = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
     }
 
-    if(pv_get_horizontal_distance_cm(origin, vec) < pv_get_horizontal_distance_cm(origin, vec2)) {
-      return vec;
-    }
-    else {
-      return vec2;
+    if (pv_get_horizontal_distance_cm(origin, vec) < pv_get_horizontal_distance_cm(origin, vec2)) {
+        return vec;
+    } else {
+        return vec2;
     }
 }
-
 
 Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r) {
     Vector3f vec;
@@ -283,34 +256,84 @@ Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &wayp
     float a = waypoint1.y;
     float b = waypoint1.x;
 
-    if(waypoint2.y - waypoint1.y != 0 ) {
-      m =-1/( (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x) );
-      n = waypoint1.y - m * waypoint1.x;
+    if (waypoint2.y - waypoint1.y != 0 ) {
+        m =-1/( (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x) );
+        n = waypoint1.y - m * waypoint1.x;
 
-      first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
-      vec.x =     (first_part + a*m + b - m*n) / (sq(m)+1);
-      vec.y =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
-      vec2.x =   (-first_part + a*m + b - m*n) / (sq(m)+1);
-      vec2.y = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
-    }
-    else {
-      n = waypoint1.x;
+        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+        vec.x =     (first_part + a*m + b - m*n) / (sq(m)+1);
+        vec.y =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        vec2.x =   (-first_part + a*m + b - m*n) / (sq(m)+1);
+        vec2.y = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+    } else {
+        n = waypoint1.x;
 
-      first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
-      vec.y =     (first_part + a*m + b - m*n) / (sq(m)+1);
-      vec.x =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
-      vec2.y =   (-first_part + a*m + b - m*n) / (sq(m)+1);
-      vec2.x = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+        vec.y =     (first_part + a*m + b - m*n) / (sq(m)+1);
+        vec.x =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        vec2.y =   (-first_part + a*m + b - m*n) / (sq(m)+1);
+        vec2.x = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
     }
 
-    if(pv_get_horizontal_distance_cm(origin, vec) < pv_get_horizontal_distance_cm(origin, vec2)) {
-      return vec2;
-    }
-    else {
-      return vec;
+    if (pv_get_horizontal_distance_cm(origin, vec) < pv_get_horizontal_distance_cm(origin, vec2)) {
+        return vec2;
+    } else {
+        return vec;
     }
 }
 
+//if mode = false vector perpendicular, si true vector paralelo
+Vector3f Copter::pv_get_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r, const bool &mode) {
+    Vector3f vec;
+    Vector3f vec2;
+    float m = 0;
+    float n = 0;
+    float first_part = 0;
+    float a = waypoint2.y;
+    float b = waypoint2.x;
+
+    if (mode) {
+        a = waypoint2.x;
+        b = waypoint2.y;
+    }
+
+    if (waypoint2.x - waypoint1.x != 0 ) {
+        m = (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x);
+        if (mode) {
+        m=-1/m;
+        }
+        n = origin.y - m * origin.x;
+        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+        vec.x =     (first_part + a*m + b - m*n) / (sq(m)+1);
+        vec.y =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        vec2.x =   (-first_part + a*m + b - m*n) / (sq(m)+1);
+        vec2.y = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+    } else {
+        if (mode) {
+            n = waypoint1.x;
+        } else {
+            n = origin.x;
+        }
+        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+        vec.y =     (first_part + a*m + b - m*n) / (sq(m)+1);
+        vec.x =   (m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+        vec2.y =   (-first_part + a*m + b - m*n) / (sq(m)+1);
+        vec2.x = (-m*first_part + a*sq(m) + b*m + n) / (sq(m)+1);
+    }
+
+
+    if (pv_get_horizontal_distance_cm(origin, vec) < pv_get_horizontal_distance_cm(origin, vec2)) {
+        if (mode) {
+            return vec2;
+        }
+        return vec;
+    } else {
+        if (mode) {
+            return vec;
+        }
+        return vec2;
+    }
+}
 
 
 // get_auto_heading - returns target heading depending upon auto_yaw_mode
@@ -321,5 +344,56 @@ float Copter::get_heading(void) {
 
 
 void Copter::get_next_waypoint() {
-  
+
+    mission.read_cmd_from_storage(comm_index,com);
+    lv_new_dest = pv_location_to_vector(com.content.location);
+
+
+    if (comm_index == 1) {
+
+        std::string s = std::to_string(lv_new_dest.x);
+        std::string s1 = std::to_string(lv_new_dest.y);
+        gcs_send_text(MAV_SEVERITY_NOTICE, (s+", "+s1).c_str());
+
+        lv_dest = lv_new_dest;
+        lv_dest_mod = pv_dist_to_vector(skirt_radius, lv_dest);
+        wp_nav.set_wp_destination(lv_dest_mod,false);
+        skirt_mode = Skirt_WP;
+
+    } else {
+
+        Vector3f v1;
+        v1.x = lv_dest_mod.x - lv_dest.x;
+        v1.y = lv_dest_mod.y - lv_dest.y;
+        Vector3f v2;
+        v2.x = lv_new_dest.x - lv_dest.x;
+        v2.y = lv_new_dest.y - lv_dest.y;
+
+        //si angulo entre vector1 y vector2 > 90
+
+        std::string s = std::to_string(degrees(v1.angle(v2)));
+        gcs_send_text(MAV_SEVERITY_NOTICE, ("Angle = " + s).c_str());
+
+        if (degrees(v1.angle(v2)) > 90) {
+
+            circle_nav.set_center(lv_dest);
+            circle_nav.init(circle_nav.get_center());
+
+            lv_dest_mod = pv_get_vector_perp(lv_dest_mod, lv_dest, lv_new_dest, skirt_radius);
+            lv_dest = lv_new_dest;
+            wp_nav.set_wp_destination(lv_dest_mod,false);
+
+            skirt_mode=Skirt_Circle;
+
+        } else {
+
+            lv_dest_mod = pv_get_vector_par(lv_dest_mod, lv_dest, lv_new_dest, skirt_radius);
+            lv_dest = lv_new_dest;
+            wp_nav.set_wp_destination(lv_dest_mod,false);
+
+            skirt_mode = Skirt_WP;
+        }
+
+    }
+    comm_index++;
 }
