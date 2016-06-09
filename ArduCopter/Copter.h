@@ -407,12 +407,13 @@ private:
     // Skirt
     SkirtMode skirt_mode;
     uint16_t comm_index = 0;
+    uint16_t test = 0;
     Location waypoint_loc;
     float skirt_radius = 50 * 100;
     AP_Mission::Mission_Command com;
-    Vector3f lv_new_dest;
-    Vector3f lv_dest;
-    Vector3f lv_dest_mod;
+    Vector3f waypoint_siguiente;
+    Vector3f waypoint_anterior;
+    Vector3f waypoint_calculado;
     // solo para pruebas, borrar en acabar
 
     //-----------------------------------------------------------------------------------------------
