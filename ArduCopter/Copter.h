@@ -412,6 +412,7 @@ private:
     float skirt_radius = 50 * 100;
     AP_Mission::Mission_Command com;
     Vector3f waypoint_siguiente;
+    Vector3f waypoint_actual;
     Vector3f waypoint_anterior;
     Vector3f waypoint_calculado;
     // solo para pruebas, borrar en acabar
@@ -864,10 +865,12 @@ private:
 
     float get_heading(void);
     void get_next_waypoint();
-    Vector3f pv_dist_to_vector(const float&r, const Vector3f&);
+    Vector3f pv_dist_to_vector(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2);
     Vector3f pv_get_vector_par(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
     Vector3f pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
     Vector3f pv_get_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r, const bool &mode);
+
+    Vector3f pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
 
 
     //-----------------------------------------------------------------------------------------------
