@@ -872,6 +872,8 @@ private:
 
     Vector3f pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
 
+    bool is_right_turn(const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3);
+
 
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
