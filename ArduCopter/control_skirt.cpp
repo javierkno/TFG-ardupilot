@@ -42,7 +42,7 @@ bool Copter::skirt_init(bool ignore_checks)
 
         // reject switching to skirt mode if landed with motors armed but first command is not a takeoff (reduce change of flips)
         if (motors.armed() && ap.land_complete && !mission.starts_with_takeoff_cmd()) {
-            gcs_send_text(MAV_SEVERITY_CRITICAL, "Skirt: Missing Takeoff Cmd");
+            gcs_send_text(MAV_SEVERITY_CRITICAL, "Skirt: this flight mode can't take off");
             return false;
         }
 
@@ -62,9 +62,8 @@ bool Copter::skirt_init(bool ignore_checks)
         // start/resume the mission (based on MIS_RESTART parameter)
         //mission.start_or_resume();
 
-
         //--------------------------------------------------------------------------------------------------------------------
-        //--------   Start                 -----------------------------------------------------------------------------------
+        //--------             Start                 -------------------------------------------------------------------------
         //--------------------------------------------------------------------------------------------------------------------
 
         get_next_waypoint();
@@ -73,8 +72,14 @@ bool Copter::skirt_init(bool ignore_checks)
         //--------------------------------------------------------------------------------------------------------------------
         //--------------------------------------------------------------------------------------------------------------------
 
+        if (follow_left) {
+            circle_nav.set_rate(45);
+        } else {
+            circle_nav.set_rate(-45);
+        }
 
         return true;
+
     } else{
         return false;
     }
@@ -93,7 +98,6 @@ void Copter::skirt_run()
 
     case Skirt_Circle:
         skirt_circle_run();
-        //skirt_wp_run();
         break;
     }
 }
@@ -181,8 +185,8 @@ Vector3f Copter::pv_dist_to_vector(const float &rad, const Vector3f &waypoint1, 
     float bearing = (-pv_get_bearing_cd(waypoint1, waypoint2)+9000)/DEGX100;
     float distance =  pv_get_horizontal_distance_cm(waypoint1, waypoint2);
 
-    vec.x = sin(bearing) * (distance - skirt_radius);
-    vec.y = cos(bearing) * (distance - skirt_radius);
+    vec.x = sin(bearing) * (distance - rad);
+    vec.y = cos(bearing) * (distance - rad);
     vec.z = waypoint2.z;
 
     vec.x += waypoint1.x;
@@ -191,41 +195,22 @@ Vector3f Copter::pv_dist_to_vector(const float &rad, const Vector3f &waypoint1, 
 }
 
 Vector3f Copter::pv_get_vector_par(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r) {
-    Vector3f vec;
-    Vector3f vec2;
-    float m = 0;
-    float n = 0;
-    float first_part = 0;
-    float a = waypoint2.y;
-    float b = waypoint2.x;
 
-    if (waypoint2.x - waypoint1.x != 0) {
-        m = (floor(waypoint2.y*1000)/1000 - floor(waypoint1.y*1000)/1000) / (floor(waypoint2.x*1000)/1000 - floor(waypoint1.x*1000)/1000);
-        n = origin.y - m * origin.x;
-        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
+    Vector3f temp = (waypoint2 - waypoint1).normalized();
 
-        vec.x = (first_part + a*m + b - m*n) / (sq(m)+1);
-        vec.y = m*vec.x + n;
-        vec2.x = (-first_part + a*m + b - m*n) / (sq(m)+1);
-        vec2.y = m*vec2.x + n;
-    } else {
-        n = origin.x;
+    float d = (waypoint1-origin).length();
+    float i = 0;
 
-        first_part = safe_sqrt(-sq(a) + 2*a*b*m + 2*a*n - sq(b)*sq(m) - 2*b*m*n + sq(m)*sq(r) - sq(n) + sq(r));
-        vec.y = (first_part + a*m + b - m*n) / (sq(m)+1);
-        vec.x = n;
-        vec2.y = (-first_part + a*m + b - m*n) / (sq(m)+1);
-        vec2.x = n;
+    if (sq(d) - sq(r) > 0) {
+        i = safe_sqrt(sq(d) - sq(r));
     }
 
-    vec.z = waypoint2.z;
-    vec2.z = waypoint2.z;
+    temp = temp * i;
+    temp = waypoint1 + temp;
+    temp = origin - temp;
+    temp.z = 0;
 
-    if ((origin-vec).length() < (origin-vec2).length()) {
-        return vec;
-    } else {
-        return vec2;
-    }
+    return waypoint2 + temp;
 }
 
 Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r) {
@@ -234,8 +219,8 @@ Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &wayp
     float m = 0;
     float n = 0;
     float first_part = 0;
-    float a = waypoint1.y;
-    float b = waypoint1.x;
+    float a = floor(waypoint1.y*1000)/1000;
+    float b = floor(waypoint1.x*1000)/1000;
 
     if (waypoint2.y - waypoint1.y != 0 ) {
         m = (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x);
@@ -261,24 +246,40 @@ Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &wayp
     vec2.z = waypoint2.z;
 
     if (is_right_turn(origin, waypoint1, waypoint2)) {
-        gcs_send_text(MAV_SEVERITY_NOTICE, "Sig derecha");
         if ((origin-vec).length() < (origin-vec2).length()) {
-            return vec2;
+            if (follow_left) {
+                return vec2;
+            } else {
+                return vec;
+            }
         } else {
-            return vec;
+            if (follow_left) {
+                return vec;
+            } else {
+                return vec2;
+            }
         }
     } else {
-        gcs_send_text(MAV_SEVERITY_NOTICE, "Sig izquierda");
         if ((origin-vec).length() > (origin-vec2).length()) {
-            return vec2;
+            if (follow_left) {
+                return vec2;
+            } else {
+                return vec;
+            }
         } else {
-            return vec;
+            if (follow_left) {
+                return vec;
+            } else {
+                return vec2;
+            }
         }
     }
 }
 
 Vector3f Copter::pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r) {
     Vector3f vec;
+    float d = 0;
+    float alpha = 0;
 
     float m = (waypoint2.y - waypoint1.y) / (waypoint2.x - waypoint1.x);
     float n = origin.y - m * origin.x;
@@ -290,14 +291,32 @@ Vector3f Copter::pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, c
     vec.y = (m*n2 - m2*n) / (m - m2);
     vec.z = waypoint3.z;
 
-    return pv_dist_to_vector(r, origin, vec);
+    std::string s = std::to_string(degrees((waypoint1-waypoint2).angle(waypoint3-waypoint2)));
+    gcs_send_text(MAV_SEVERITY_NOTICE, ("Angulo pared = " + s).c_str());
+
+    alpha = 360 - 90 - degrees((waypoint1-waypoint2).angle(waypoint3-waypoint2));
+    d = abs(r / cos(radians(alpha)));
+
+    std::string s3 = std::to_string(alpha);
+    gcs_send_text(MAV_SEVERITY_NOTICE, ("Angulo pared complementario = " + s3).c_str());
+
+    std::string s1 = std::to_string(r);
+    std::string s2 = std::to_string(d);
+    gcs_send_text(MAV_SEVERITY_NOTICE, ("Distancia pared = " + s1).c_str());
+    gcs_send_text(MAV_SEVERITY_NOTICE, ("Distancia calculada = " + s2).c_str());
+
+    return pv_dist_to_vector(d, origin, vec);
 }
 
 
-// get_auto_heading - returns target heading depending upon auto_yaw_mode
+// get_heading - returns target heading depending upon auto_yaw_mode
 // 100hz update rate
 float Copter::get_heading(void) {
-    return wp_nav.get_yaw() + 9000;
+    if (follow_left) {
+        return wp_nav.get_yaw() + 9000;
+    } else {
+        return wp_nav.get_yaw() - 9000;
+    }
 }
 
 // is_right_turn
@@ -355,45 +374,72 @@ void Copter::get_next_waypoint() {
             comm_index = 0;
         }
 
-        Vector3f v1(waypoint_calculado.x - waypoint_anterior.x, waypoint_calculado.y - waypoint_anterior.y, 0);
-        Vector3f v2(waypoint_actual.x - waypoint_anterior.x, waypoint_actual.y - waypoint_anterior.y, 0);
+        if (first_run) {
 
-        if (degrees(v1.angle(v2)) > 95) {
+            std::string s = std::to_string(waypoint_actual.x);
+            std::string s1 = std::to_string(waypoint_actual.y);
+            gcs_send_text(MAV_SEVERITY_NOTICE, (s+", "+s1).c_str());
 
-            //gcs_send_text(MAV_SEVERITY_NOTICE, "CURVA");
-
-            circle_nav.set_center(waypoint_anterior);
-            circle_nav.init(circle_nav.get_center());
-
-            waypoint_calculado = pv_get_vector_perp(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
-
-            wp_nav.set_wp_destination(waypoint_calculado,false);
-
-            skirt_mode=Skirt_Circle;
-
-        } else {
-
-            //gcs_send_text(MAV_SEVERITY_NOTICE, "RECTA");
-
-            aux = pv_get_vector_par(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
-            aux2 = pv_get_max(waypoint_calculado, waypoint_anterior, waypoint_actual, waypoint_siguiente, skirt_radius);
-
-            if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente)) {
-                waypoint_calculado = aux;
-            } else {
-                if ((aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
-                    waypoint_calculado = aux;
-                } else {
-                    waypoint_calculado = aux2;
-                }
-            }
-
-            wp_nav.set_wp_destination(waypoint_calculado,false);
-
+            waypoint_calculado = pv_dist_to_vector(skirt_radius, pv_location_to_vector(ahrs.get_home()), waypoint_actual);
             waypoint_anterior = waypoint_actual;
-
+            wp_nav.set_wp_destination(waypoint_calculado,false);
             skirt_mode = Skirt_WP;
             comm_index++;
+            first_run = false;
+
+        } else {
+            Vector3f v1(waypoint_calculado.x - waypoint_anterior.x, waypoint_calculado.y - waypoint_anterior.y, 0);
+            Vector3f v2(waypoint_actual.x - waypoint_anterior.x, waypoint_actual.y - waypoint_anterior.y, 0);
+
+            if (degrees(v1.angle(v2)) > 95) {
+
+                //gcs_send_text(MAV_SEVERITY_NOTICE, "CURVA");
+
+                circle_nav.set_center(waypoint_anterior);
+                circle_nav.init(circle_nav.get_center());
+
+                waypoint_calculado = pv_get_vector_perp(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
+
+                wp_nav.set_wp_destination(waypoint_calculado,false);
+
+                skirt_mode=Skirt_Circle;
+
+            } else {
+
+                //gcs_send_text(MAV_SEVERITY_NOTICE, "RECTA");
+
+                aux = pv_get_vector_par(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
+                aux2 = pv_get_max(waypoint_calculado, waypoint_anterior, waypoint_actual, waypoint_siguiente, skirt_radius);
+
+                if (follow_left) {
+                    if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente)) {
+                        waypoint_calculado = aux;
+                    } else {
+                        if ((aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
+                            waypoint_calculado = aux;
+                        } else {
+                            waypoint_calculado = aux2;
+                        }
+                    }
+                } else {
+                    if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente)) {
+                        waypoint_calculado = aux2;
+                    } else {
+                        if ((aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
+                            waypoint_calculado = aux2;
+                        } else {
+                            waypoint_calculado = aux;
+                        }
+                    }
+                }
+
+                wp_nav.set_wp_destination(waypoint_calculado,false);
+
+                waypoint_anterior = waypoint_actual;
+
+                skirt_mode = Skirt_WP;
+                comm_index++;
+            }
         }
 
     } else {

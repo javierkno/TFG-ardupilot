@@ -415,6 +415,9 @@ private:
     Vector3f waypoint_actual;
     Vector3f waypoint_anterior;
     Vector3f waypoint_calculado;
+    bool first_run = true;
+
+    bool follow_left = false;
     // solo para pruebas, borrar en acabar
 
     //-----------------------------------------------------------------------------------------------
