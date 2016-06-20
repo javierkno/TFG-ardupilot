@@ -1,7 +1,7 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
 #include "Copter.h"
-#include <string>
+//#include <string>
 
 /*
  * control_skirt.pde - init and run calls for auto flight mode
@@ -77,6 +77,9 @@ bool Copter::skirt_init(bool ignore_checks)
         } else {
             circle_nav.set_rate(-45);
         }
+
+        //std::string a = std::to_string(mission.num_commands_max());
+        //gcs_send_text(MAV_SEVERITY_NOTICE, ("Número máximo de comandos: "+a).c_str());
 
         return true;
 
@@ -172,8 +175,7 @@ void Copter::skirt_circle_run()
     // roll & pitch from waypoint controller, yaw rate from pilot
     attitude_control.input_euler_angle_roll_pitch_yaw(circle_nav.get_roll(), circle_nav.get_pitch(), circle_nav.get_yaw(),true);
 
-
-    if(pv_get_horizontal_distance_cm(inertial_nav.get_position(), waypoint_calculado) < 300) {
+    if(pv_get_horizontal_distance_cm(inertial_nav.get_position(), waypoint_calculado) < 220) {
 
         get_next_waypoint();
     }
@@ -182,15 +184,16 @@ void Copter::skirt_circle_run()
 Vector3f Copter::pv_dist_to_vector(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2) {
     Vector3f vec;
 
-    float bearing = (-pv_get_bearing_cd(waypoint1, waypoint2)+9000)/DEGX100;
+    float bearing = (9000-pv_get_bearing_cd(waypoint1, waypoint2))/DEGX100;
     float distance =  pv_get_horizontal_distance_cm(waypoint1, waypoint2);
 
     vec.x = sin(bearing) * (distance - rad);
     vec.y = cos(bearing) * (distance - rad);
-    vec.z = waypoint2.z;
 
     vec.x += waypoint1.x;
     vec.y += waypoint1.y;
+    vec.z = waypoint2.z;
+
     return vec;
 }
 
@@ -291,19 +294,19 @@ Vector3f Copter::pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, c
     vec.y = (m*n2 - m2*n) / (m - m2);
     vec.z = waypoint3.z;
 
-    std::string s = std::to_string(degrees((waypoint1-waypoint2).angle(waypoint3-waypoint2)));
-    gcs_send_text(MAV_SEVERITY_NOTICE, ("Angulo pared = " + s).c_str());
+    //std::string s = std::to_string(degrees((waypoint1-waypoint2).angle(waypoint3-waypoint2)));
+    //gcs_send_text(MAV_SEVERITY_NOTICE, ("Angulo pared = " + s).c_str());
 
     alpha = 360 - 90 - degrees((waypoint1-waypoint2).angle(waypoint3-waypoint2));
     d = abs(r / cos(radians(alpha)));
 
-    std::string s3 = std::to_string(alpha);
-    gcs_send_text(MAV_SEVERITY_NOTICE, ("Angulo pared complementario = " + s3).c_str());
+    //std::string s3 = std::to_string(alpha);
+    //gcs_send_text(MAV_SEVERITY_NOTICE, ("Angulo pared complementario = " + s3).c_str());
 
-    std::string s1 = std::to_string(r);
-    std::string s2 = std::to_string(d);
-    gcs_send_text(MAV_SEVERITY_NOTICE, ("Distancia pared = " + s1).c_str());
-    gcs_send_text(MAV_SEVERITY_NOTICE, ("Distancia calculada = " + s2).c_str());
+    //std::string s1 = std::to_string(r);
+    //std::string s2 = std::to_string(d);
+    //gcs_send_text(MAV_SEVERITY_NOTICE, ("Distancia pared = " + s1).c_str());
+    //gcs_send_text(MAV_SEVERITY_NOTICE, ("Distancia calculada = " + s2).c_str());
 
     return pv_dist_to_vector(d, origin, vec);
 }
@@ -328,62 +331,53 @@ bool Copter::is_right_turn(const Vector3f &waypoint1, const Vector3f &waypoint2,
 
     if (first_angle > 0 && first_angle < 18000) {
         if ((first_angle > second_angle || (second_angle > 36000 && second_angle > abs(18000 - first_angle)))) {
-            //gcs_send_text(MAV_SEVERITY_NOTICE, "Sig izquierda");
+            //left
             return false;
         } else {
-            //gcs_send_text(MAV_SEVERITY_NOTICE, "Sig derecha");
+            //right
             return true;
         }
     } else {
         if (first_angle < second_angle || (second_angle > 0 && second_angle < abs(18000 - first_angle))) {
-            //gcs_send_text(MAV_SEVERITY_NOTICE, "Sig derecha");
+            //right
             return true;
         } else {
-            std::string s = std::to_string(first_angle);
-            std::string s1 = std::to_string(second_angle);
-            gcs_send_text(MAV_SEVERITY_NOTICE, ("first: "+s).c_str());
-            gcs_send_text(MAV_SEVERITY_NOTICE, ("second: "+s1).c_str());
+            //left
             return false;
         }
     }
 }
+
+// isLeft(): test if a point is Left|On|Right of an infinite 2D line.
+//    Input:  three points P0, P1, and P2
+//    Return: >0 for P2 left of the line through P0 to P1
+//          =0 for P2 on the line
+//          <0 for P2 right of the line
+//inline int
+//isLeft( Point P0, Point P1, Point P2 ) {
+//    return ( (P1.x - P0.x) * (P2.y - P0.y)
+//           - (P2.x - P0.x) * (P1.y - P0.y) );
+//}
 
 void Copter::get_next_waypoint() {
 
     Vector3f aux;
     Vector3f aux2;
 
-    if (mission.read_cmd_from_storage(comm_index,com)) {
-        std::string a = std::to_string(comm_index);
-        //gcs_send_text(MAV_SEVERITY_NOTICE, ("Leyendo: "+a).c_str());
-        waypoint_actual = pv_location_to_vector(com.content.location);
 
-        if(comm_index+1 < mission.num_commands()) {
-            mission.read_cmd_from_storage(comm_index+1,com);
-            a = std::to_string(comm_index+1);
-            //gcs_send_text(MAV_SEVERITY_NOTICE, ("Siguiente: "+a).c_str());
-            waypoint_siguiente = pv_location_to_vector(com.content.location);
-        }
-        else {
-
-            mission.read_cmd_from_storage(1,com);
-            waypoint_siguiente = pv_location_to_vector(com.content.location);
-
-            gcs_send_text(MAV_SEVERITY_NOTICE, "Siguiente: 1");
-
-            comm_index = 0;
-        }
+    if (get_next_command()) {
 
         if (first_run) {
 
-            std::string s = std::to_string(waypoint_actual.x);
-            std::string s1 = std::to_string(waypoint_actual.y);
-            gcs_send_text(MAV_SEVERITY_NOTICE, (s+", "+s1).c_str());
+            //std::string s = std::to_string(waypoint_actual.x);
+            //std::string s1 = std::to_string(waypoint_actual.y);
+            //gcs_send_text(MAV_SEVERITY_NOTICE, (s+", "+s1).c_str());
 
             waypoint_calculado = pv_dist_to_vector(skirt_radius, pv_location_to_vector(ahrs.get_home()), waypoint_actual);
             waypoint_anterior = waypoint_actual;
             wp_nav.set_wp_destination(waypoint_calculado,false);
             skirt_mode = Skirt_WP;
+            prev_index = comm_index;
             comm_index++;
             first_run = false;
 
@@ -391,9 +385,8 @@ void Copter::get_next_waypoint() {
             Vector3f v1(waypoint_calculado.x - waypoint_anterior.x, waypoint_calculado.y - waypoint_anterior.y, 0);
             Vector3f v2(waypoint_actual.x - waypoint_anterior.x, waypoint_actual.y - waypoint_anterior.y, 0);
 
-            if (degrees(v1.angle(v2)) > 95) {
-
-                //gcs_send_text(MAV_SEVERITY_NOTICE, "CURVA");
+            //curve
+            if (degrees(v1.angle(v2)) > 95) { //curve
 
                 circle_nav.set_center(waypoint_anterior);
                 circle_nav.init(circle_nav.get_center());
@@ -404,33 +397,15 @@ void Copter::get_next_waypoint() {
 
                 skirt_mode=Skirt_Circle;
 
-            } else {
+            } else { //line
 
-                //gcs_send_text(MAV_SEVERITY_NOTICE, "RECTA");
+                Vector3f temp = waypoint_calculado;
+                waypoint_calculado = get_line_waypoint();
 
-                aux = pv_get_vector_par(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
-                aux2 = pv_get_max(waypoint_calculado, waypoint_anterior, waypoint_actual, waypoint_siguiente, skirt_radius);
 
-                if (follow_left) {
-                    if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente)) {
-                        waypoint_calculado = aux;
-                    } else {
-                        if ((aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
-                            waypoint_calculado = aux;
-                        } else {
-                            waypoint_calculado = aux2;
-                        }
-                    }
-                } else {
-                    if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente)) {
-                        waypoint_calculado = aux2;
-                    } else {
-                        if ((aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
-                            waypoint_calculado = aux2;
-                        } else {
-                            waypoint_calculado = aux;
-                        }
-                    }
+                if (check_collisions(temp, waypoint_calculado)) {
+                    get_next_command();
+                    waypoint_calculado = get_line_waypoint();
                 }
 
                 wp_nav.set_wp_destination(waypoint_calculado,false);
@@ -438,6 +413,7 @@ void Copter::get_next_waypoint() {
                 waypoint_anterior = waypoint_actual;
 
                 skirt_mode = Skirt_WP;
+                prev_index = comm_index;
                 comm_index++;
             }
         }
@@ -448,3 +424,177 @@ void Copter::get_next_waypoint() {
         //gcs_send_text(MAV_SEVERITY_NOTICE, "Error");
     }
 }
+
+
+bool Copter::check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2) {
+    Vector3f temp;
+    //gcs_send_text(MAV_SEVERITY_NOTICE, "ok");
+    for(uint16_t i=mission.num_commands()-1; i>comm_index; i--) {
+        /*std::string a = std::to_string(comm_index);
+        gcs_send_text(MAV_SEVERITY_NOTICE, ("comm_index= "+ a).c_str());
+        std::string b = std::to_string(i);
+        gcs_send_text(MAV_SEVERITY_NOTICE, ("i= "+ b).c_str());*/
+
+        mission.read_cmd_from_storage(i,com);
+        temp = pv_location_to_vector(com.content.location);
+        if(dist_point_to_segment(temp, waypoint1, waypoint2) < skirt_radius+200 && i!=prev_index) {
+            waypoint_actual = temp;
+            prev_index = previous_index();
+            comm_index = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Copter::get_next_command() {
+
+    if(comm_index > mission.num_commands()-1) {
+        comm_index = 1;
+    }
+
+    if (mission.read_cmd_from_storage(comm_index,com)) {
+
+        //std::string a = std::to_string(comm_index);
+        //gcs_send_text(MAV_SEVERITY_NOTICE, ("Actual: "+a).c_str());
+        waypoint_actual = pv_location_to_vector(com.content.location);
+
+        //-----------------------------------------
+        //-----------------------------------------
+        //check_collisions();
+        //-----------------------------------------
+        //-----------------------------------------
+
+        if(comm_index+1 < mission.num_commands()) {
+            mission.read_cmd_from_storage(comm_index+1,com);
+            //a = std::to_string(comm_index+1);
+            //gcs_send_text(MAV_SEVERITY_NOTICE, ("Siguiente: "+a).c_str());
+            waypoint_siguiente = pv_location_to_vector(com.content.location);
+        }
+        else {
+
+            mission.read_cmd_from_storage(1,com);
+            waypoint_siguiente = pv_location_to_vector(com.content.location);
+
+            //gcs_send_text(MAV_SEVERITY_NOTICE, "Siguiente: 1");
+
+        }
+        return true;
+    } else {
+        return false;
+    }
+
+}
+
+Vector3f Copter::get_line_waypoint() {
+    Vector3f aux = pv_get_vector_par(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
+    Vector3f aux2 = pv_get_max(waypoint_calculado, waypoint_anterior, waypoint_actual, waypoint_siguiente, skirt_radius);
+
+    if (follow_left) {
+        if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente) ||
+            (aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
+            return  aux;
+        } else {
+            return  aux2;
+        }
+    } else {
+        if (is_right_turn(waypoint_anterior, waypoint_actual, waypoint_siguiente) ||
+            (aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
+            return  aux2;
+        } else {
+            return  aux;
+        }
+    }
+}
+
+// dist_Point_to_Segment(): get the distance of a point to a segment
+//     Input:  a Point P and a Segment S (in any dimension)
+//     Return: the shortest distance from P to S
+float Copter::dist_point_to_segment(const Vector3f &P, const Vector3f &SP0, const Vector3f &SP1) {
+    Vector3f v = SP1 - SP0;
+    Vector3f w = P - SP0;
+
+    double c1 = w * v;
+    if (c1 <= 0) {
+        return (P - SP0).length();
+    }
+
+    double c2 = v * v;
+    if (c2 <= c1) {
+        return (P - SP1).length();
+    }
+
+    double b = c1 / c2;
+    Vector3f Pb = SP0 + v * b;
+    return (P - Pb).length();
+}
+
+uint16_t Copter::previous_index() {
+    if (comm_index-1 > 0) {
+        return comm_index-1;
+    } else {
+        //TODO comprobar si esto cambia cuando falta el comando 0 (HOME)
+        return mission.num_commands()-1;
+    }
+}
+
+// a Polygon is given by:
+//       int n = number of vertex points
+//       Point* V[] = an array of n+1 vertex points with V[n]=V[0]
+
+
+
+
+// dist_Point_to_Segment(): get the distance of a point to a segment
+//     Input:  a Point P and a Segment S (in any dimension)
+//     Return: the shortest distance from P to S
+/*float
+dist_Point_to_Segment( Point P, Segment S) {
+     Vector v = S.P1 - S.P0;
+     Vector w = P - S.P0;
+
+     double c1 = dot(w,v);
+     if ( c1 <= 0 )
+          return d(P, S.P0);
+
+     double c2 = dot(v,v);
+     if ( c2 <= c1 )
+          return d(P, S.P1);
+
+     double b = c1 / c2;
+     Point Pb = S.P0 + b * v;
+     return d(P, Pb);
+}*/
+
+
+
+// dist_Point_to_Line(): get the distance of a point to a line
+//     Input:  a Point P and a Line L (in any dimension)
+//     Return: the shortest distance from P to L
+/*float
+dist_Point_to_Line( Point P, Line L) {
+     Vector v = L.P1 - L.P0;
+     Vector w = P - L.P0;
+
+     double c1 = dot(w,v);
+     double c2 = dot(v,v);
+     double b = c1 / c2;
+
+     Point Pb = L.P0 + b * v;
+     return d(P, Pb);
+}*/
+
+// Assume that classes are already given for the objects:
+//     Point and Vector with
+//          coordinates {float x, y, z;} (z=0  for 2D)
+//          appropriate operators for:
+//               Point  = Point ± Vector
+//               Vector = Point - Point
+//               Vector = Scalar * Vector
+//     Line with defining endpoints {Point P0, P1;}
+//     Segment with defining endpoints {Point P0, P1;}
+
+// dot product (3D) which allows vector operations in arguments
+//#define dot(u,v)   ((u).x * (v).x + (u).y * (v).y + (u).z * (v).z)
+//#define norm(v)     sqrt(dot(v,v))     // norm = length of  vector
+//#define d(u,v)      norm(u-v)          // distance = norm of difference

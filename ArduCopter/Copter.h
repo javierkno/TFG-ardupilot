@@ -407,18 +407,18 @@ private:
     // Skirt
     SkirtMode skirt_mode;
     uint16_t comm_index = 0;
-    uint16_t test = 0;
+    uint16_t prev_index = 0;
+
+    AP_Mission::Mission_Command com;
     Location waypoint_loc;
     float skirt_radius = 50 * 100;
-    AP_Mission::Mission_Command com;
     Vector3f waypoint_siguiente;
     Vector3f waypoint_actual;
     Vector3f waypoint_anterior;
     Vector3f waypoint_calculado;
-    bool first_run = true;
 
+    bool first_run = true;
     bool follow_left = false;
-    // solo para pruebas, borrar en acabar
 
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
@@ -876,6 +876,12 @@ private:
     Vector3f pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
 
     bool is_right_turn(const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3);
+
+    bool check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2);
+    float dist_point_to_segment(const Vector3f &P, const Vector3f &SP0, const Vector3f &SP1);
+    uint16_t previous_index();
+    bool get_next_command();
+    Vector3f get_line_waypoint();
 
 
     //-----------------------------------------------------------------------------------------------
