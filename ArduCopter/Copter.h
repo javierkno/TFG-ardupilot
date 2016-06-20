@@ -406,7 +406,7 @@ private:
     //-----------------------------------------------------------------------------------------------
     // Skirt
     SkirtMode skirt_mode;
-    uint16_t comm_index = 0;
+    uint16_t comm_index = 1;
     uint16_t prev_index = 0;
 
     AP_Mission::Mission_Command com;
@@ -418,7 +418,7 @@ private:
     Vector3f waypoint_calculado;
 
     bool first_run = true;
-    bool follow_left = false;
+    bool follow_left = true;
 
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
@@ -867,21 +867,27 @@ private:
     void skirt_circle_run();
 
     float get_heading(void);
+
+    bool get_next_command();
     void get_next_waypoint();
-    Vector3f pv_dist_to_vector(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2);
-    Vector3f pv_get_vector_par(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
+
+
+    Vector3f pv_translate_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
+    Vector3f pv_translate_vector_collision(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
+
+    //TODO change name
     Vector3f pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
-    Vector3f pv_get_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r, const bool &mode);
 
-    Vector3f pv_get_max(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
-
-    bool is_right_turn(const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3);
 
     bool check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2);
-    float dist_point_to_segment(const Vector3f &P, const Vector3f &SP0, const Vector3f &SP1);
     uint16_t previous_index();
-    bool get_next_command();
     Vector3f get_line_waypoint();
+    void set_wp_mode();
+
+
+    bool get_direction(const Vector3f &start, const Vector3f &end, const Vector3f &next_wp);
+    float pv_dist_to_segment(const Vector3f &point, const Vector3f &start, const Vector3f &end);
+    Vector3f shorten_vector(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2);
 
 
     //-----------------------------------------------------------------------------------------------
