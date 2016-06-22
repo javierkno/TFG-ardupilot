@@ -865,29 +865,21 @@ private:
     void skirt_run();
     void skirt_wp_run();
     void skirt_circle_run();
-
-    float get_heading(void);
-
-    bool get_next_command();
-    void get_next_waypoint();
-
-
-    Vector3f pv_translate_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
+    float skirt_get_heading(void);
+    bool skirt_get_next_command();
+    void skirt_get_next_waypoint();
+    void skirt_set_wp_mode();
+    bool skirt_check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2);
+    Vector3f skirt_get_line_waypoint();
+    uint16_t skirt_previous_index();
     Vector3f pv_translate_vector_collision(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
 
+    float pv_dist_to_segment(const Vector3f &point, const Vector3f &start, const Vector3f &end);
+    Vector3f pv_shorten(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2);
+    Vector3f pv_translate_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
     //TODO change name
     Vector3f pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
-
-
-    bool check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2);
-    uint16_t previous_index();
-    Vector3f get_line_waypoint();
-    void set_wp_mode();
-
-
     bool get_direction(const Vector3f &start, const Vector3f &end, const Vector3f &next_wp);
-    float pv_dist_to_segment(const Vector3f &point, const Vector3f &start, const Vector3f &end);
-    Vector3f shorten_vector(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2);
 
 
     //-----------------------------------------------------------------------------------------------
