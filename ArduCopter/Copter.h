@@ -22,6 +22,8 @@
 // Header includes
 ////////////////////////////////////////////////////////////////////////////////
 
+#include <string>
+
 #include <cmath>
 #include <stdio.h>
 #include <stdarg.h>
@@ -418,7 +420,7 @@ private:
     Vector3f waypoint_calculado;
 
     bool first_run = true;
-    bool follow_left = true;
+    bool follow_left = false;
 
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
@@ -879,9 +881,10 @@ private:
     Vector3f pv_translate_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
     //TODO change name
     Vector3f pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
-    bool get_direction(const Vector3f &start, const Vector3f &end, const Vector3f &next_wp);
+    int8_t get_direction(const Vector3f &start, const Vector3f &end, const Vector3f &next_wp);
 
-
+    void printV(const Vector3f &v, int n);
+    void print(std::string s);
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------

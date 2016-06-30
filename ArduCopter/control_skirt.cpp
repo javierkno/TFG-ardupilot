@@ -1,7 +1,17 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
 #include "Copter.h"
-//#include <string>
+
+
+void Copter::printV(const Vector3f &v, int n) {
+    gcs_send_text(MAV_SEVERITY_NOTICE, ("W" + std::to_string(n) + " = (" + std::to_string(v.x) + ", " + std::to_string(v.y) + ")").c_str());
+}
+
+void Copter::print(std::string s) {
+    gcs_send_text(MAV_SEVERITY_NOTICE, s.c_str());
+}
+//std::string a = std::to_string(comm_index);
+
 
 /*
  * control_skirt.pde - init and run calls for skirt flight mode
@@ -25,9 +35,9 @@
 bool Copter::skirt_init(bool ignore_checks)
 {
     AP_Mission::Mission_Command c;
-    uint16_t ind = 0;
-    for(bool read = true;read;ind++) {
-        read = mission.read_cmd_from_storage(ind,c);
+    for(uint16_t ind = 0;ind < mission.num_commands();ind++) {
+        mission.read_cmd_from_storage(ind,c);
+        printV(pv_location_to_vector(c.content.location),ind);
         // reject switching to skirt mode if there are commands other tan navigation commands
         if(!mission.is_nav_cmd(c)) {
             gcs_send_text(MAV_SEVERITY_CRITICAL, "Skirt: All commands must be navigation commands");
@@ -63,6 +73,7 @@ bool Copter::skirt_init(bool ignore_checks)
             circle_nav.set_rate(-45);
         }
 
+        first_run = true;
         // starts the flight mode calling to the decision maker
         skirt_get_next_waypoint();
 
@@ -85,7 +96,8 @@ void Copter::skirt_run()
         break;
 
     case Skirt_Circle:
-        skirt_circle_run();
+        skirt_wp_run();
+        //skirt_circle_run();
         break;
     }
 }
@@ -222,7 +234,7 @@ void Copter::skirt_get_next_waypoint()
             Vector3f v1 = waypoint_calculado - waypoint_anterior;//(waypoint_calculado.x - waypoint_anterior.x, waypoint_calculado.y - waypoint_anterior.y, 0);
             Vector3f v2 = waypoint_actual - waypoint_anterior;//(waypoint_actual.x - waypoint_anterior.x, waypoint_actual.y - waypoint_anterior.y, 0);
 
-
+            print("next");
             if (degrees(v1.angle(v2)) > 95) {
 
                 Vector3f temp = waypoint_calculado;
@@ -230,6 +242,8 @@ void Copter::skirt_get_next_waypoint()
 
                 // check for collisions in route
                 if (skirt_check_collisions(temp, waypoint_calculado)) {
+                    print("avoiding");
+                    print("line");
                     // avoid waypoints and set "Skirt_WP" mode
                     waypoint_calculado = temp;
                     skirt_get_next_command();
@@ -237,6 +251,7 @@ void Copter::skirt_get_next_waypoint()
                     skirt_set_wp_mode();
 
                 } else {
+                    print("circle");
                     // set "Skirt_Circle" mode
                     circle_nav.set_center(waypoint_anterior);
                     circle_nav.init(circle_nav.get_center());
@@ -245,16 +260,36 @@ void Copter::skirt_get_next_waypoint()
                     skirt_mode=Skirt_Circle;
                 }
 
+                /*print("origin");
+                printV(temp,0);
+                print("anterior");
+                printV(waypoint_anterior,1);
+                print("actual");
+                printV(waypoint_actual,2);
+                print("calculado");
+                printV(waypoint_calculado,4);*/
+
             } else {
+                print("line");
                 // set "Skirt_WP" mode
                 Vector3f temp = waypoint_calculado;
                 waypoint_calculado = skirt_get_line_waypoint();
                 // check for collisions in route
                 if (skirt_check_collisions(temp, waypoint_calculado)) {
                     // avoid waypoints
+                    waypoint_calculado = temp;
                     skirt_get_next_command();
                     waypoint_calculado = skirt_get_line_waypoint();
                 }
+
+                /*print("origin");
+                printV(temp,0);
+                print("anterior");
+                printV(waypoint_anterior,1);
+                print("actual");
+                printV(waypoint_actual,2);
+                print("calculado");
+                printV(waypoint_calculado,4);*/
 
                 skirt_set_wp_mode();
             }
@@ -306,22 +341,20 @@ Vector3f Copter::skirt_get_line_waypoint()
 
     // decides which is the right one depending on the direction o the multicopter (left or right)
     if (follow_left) {
-        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente) ||
-            (aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
-            //dir: left, turn: left --> the shortest one
-            return  aux;
-        } else {
-            //dir: left, turn: right --> the longest one
+        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente)==-1) {
+            print("short");
             return  aux2;
+        } else {
+            print("long");
+            return aux;
         }
     } else {
-        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente) ||
-            (aux-waypoint_calculado).length() < (aux2-waypoint_calculado).length()) {
-            //dir: right, turn: right --> the longest one
-            return  aux2;
-        } else {
-            //dir: right, turn: left --> the shortest one
+        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente)==-1) {
+            print("long");
             return  aux;
+        } else {
+            print("short");
+            return  aux2;
         }
     }
 }
@@ -432,6 +465,7 @@ Vector3f Copter::pv_translate_vector(const Vector3f &origin, const Vector3f &way
 // pv_get_vector_perp - obtains the position vector equivalent to rotate 90º the waypoint1-origin vector translated to the waypoint2
 Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r)
 {
+    /*
     Vector3f vec;
     Vector3f vec2;
     float m = 0;
@@ -463,59 +497,90 @@ Vector3f Copter::pv_get_vector_perp(const Vector3f &origin, const Vector3f &wayp
     vec.z = waypoint2.z;
     vec2.z = waypoint2.z;
 
-    if (get_direction(origin, waypoint1, waypoint2)) {
         if ((origin-vec).length() < (origin-vec2).length()) {
-            if (follow_left) {
-                return vec2;
-            } else {
-                return vec;
-            }
+            return vec2;
         } else {
-            if (follow_left) {
-                return vec;
-            } else {
-                return vec2;
-            }
+            return vec;
+        }*/
+
+
+    Vector3f temp = (origin - waypoint1);
+    Vector3f inc;
+    float alpha;
+    float angle;
+
+    angle = pv_get_bearing_cd(waypoint1, origin) - pv_get_bearing_cd(waypoint1, waypoint2);
+
+
+    if(follow_left) {
+        if (get_direction(origin, waypoint1, waypoint2)==1) {
+            angle = -angle;
+            angle -= 9000;
+        } else {
+            angle = -angle;
+            angle -= 9000;
         }
     } else {
-        if ((origin-vec).length() > (origin-vec2).length()) {
-            if (follow_left) {
-                return vec2;
-            } else {
-                return vec;
-            }
+        if (get_direction(origin, waypoint1, waypoint2)==-1) {
+            //angle = -angle;
+            angle -= 9000;
+            angle = -angle;
         } else {
-            if (follow_left) {
-                return vec;
-            } else {
-                return vec2;
-            }
+            angle -= 9000;
+            angle = -angle;
         }
     }
+
+    print("rotating" + std::to_string(angle));
+
+    alpha = radians(angle/100);
+
+    inc.x = temp.x*cos(alpha) - temp.y*sin(alpha);
+    inc.y = temp.x*sin(alpha) + temp.y*cos(alpha);
+
+    return waypoint1 + inc;
+
 }
 
 
-// get_direction - returns true if destination is in he right side of the life formed by waypoint1 and waypoint2, false in other case
-bool Copter::get_direction(const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &destination)
+// get_direction - returns true if destination is in the right side of the line formed by waypoint1 and waypoint2, false in other case
+int8_t Copter::get_direction(const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &destination)
 {
     float first_angle = pv_get_bearing_cd(waypoint1, waypoint2);
     float second_angle = pv_get_bearing_cd(waypoint2, destination);
 
+    /*print("first angle");
+    print(std::to_string(first_angle));
+    print("second angle");
+    print(std::to_string(second_angle));*/
+
+    if(abs(first_angle - second_angle) < 1000) {
+        return 0;
+    }
+
     if (first_angle > 0 && first_angle < 18000) {
-        if ((first_angle > second_angle || (second_angle > 36000 && second_angle > abs(18000 - first_angle)))) {
+        if ((first_angle > second_angle || (second_angle < 36000 && second_angle > 36000 - (18000 - first_angle)))) {
             // left
-            return false;
+            return -1;
         } else {
             // right
-            return true;
+            return 1;
         }
     } else {
-        if (first_angle < second_angle || (second_angle > 0 && second_angle < abs(18000 - first_angle))) {
+        if (first_angle < second_angle || (second_angle > 0 && second_angle < 36000 - (18000 - first_angle))) {
             // right
-            return true;
+            if(follow_left) {
+                return 1;
+            } else {
+                return -1;
+            }
         } else {
             // left
-            return false;
+            if(follow_left) {
+                return -1;
+            } else {
+                return 1;
+            }
         }
     }
 }
