@@ -407,21 +407,22 @@ private:
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
     // Skirt
+    bool follow_left = true;
+    float skirt_radius = 50 * 100;
+
     SkirtMode skirt_mode;
     uint16_t comm_index = 1;
     uint16_t prev_index = 0;
 
     AP_Mission::Mission_Command com;
     Location waypoint_loc;
-    float skirt_radius = 50 * 100;
+
     Vector3f waypoint_siguiente;
     Vector3f waypoint_actual;
     Vector3f waypoint_anterior;
     Vector3f waypoint_calculado;
 
     bool first_run = true;
-    bool follow_left = false;
-
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
     //-----------------------------------------------------------------------------------------------
@@ -874,12 +875,11 @@ private:
     bool skirt_check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2);
     Vector3f skirt_get_line_waypoint();
     uint16_t skirt_previous_index();
-    Vector3f pv_translate_vector_collision(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
 
     float pv_dist_to_segment(const Vector3f &point, const Vector3f &start, const Vector3f &end);
     Vector3f pv_shorten(const float &rad, const Vector3f &waypoint1, const Vector3f &waypoint2);
     Vector3f pv_translate_vector(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
-    //TODO change name
+    Vector3f pv_translate_vector_collision(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const Vector3f &waypoint3, const float &r);
     Vector3f pv_get_vector_perp(const Vector3f &origin, const Vector3f &waypoint1, const Vector3f &waypoint2, const float &r);
     int8_t get_direction(const Vector3f &start, const Vector3f &end, const Vector3f &next_wp);
 
