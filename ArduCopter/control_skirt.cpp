@@ -237,6 +237,9 @@ void Copter::skirt_get_next_waypoint()
             print("next");
             if (degrees(v1.angle(v2)) > 95) {
 
+                //print("origin");
+                //printV(waypoint_calculado,0);
+
                 Vector3f temp = waypoint_calculado;
                 waypoint_calculado = pv_get_vector_perp(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
 
@@ -260,34 +263,37 @@ void Copter::skirt_get_next_waypoint()
                     skirt_mode=Skirt_Circle;
                 }
 
-                /*print("origin");
-                printV(temp,0);
-                print("anterior");
+                /*print("anterior");
                 printV(waypoint_anterior,1);
                 print("actual");
                 printV(waypoint_actual,2);
+                print("siguiente");
+                printV(waypoint_siguiente,3);
                 print("calculado");
                 printV(waypoint_calculado,4);*/
 
             } else {
                 print("line");
                 // set "Skirt_WP" mode
-                Vector3f temp = waypoint_calculado;
-                waypoint_calculado = skirt_get_line_waypoint();
+                //print("origin");
+                //printV(waypoint_calculado,0);
+                Vector3f temp = skirt_get_line_waypoint();
                 // check for collisions in route
-                if (skirt_check_collisions(temp, waypoint_calculado)) {
+                if (skirt_check_collisions(waypoint_calculado, temp)) {
                     // avoid waypoints
-                    waypoint_calculado = temp;
+
                     skirt_get_next_command();
                     waypoint_calculado = skirt_get_line_waypoint();
+                } else {
+                    waypoint_calculado = temp;
                 }
 
-                /*print("origin");
-                printV(temp,0);
-                print("anterior");
+                /*print("anterior");
                 printV(waypoint_anterior,1);
                 print("actual");
                 printV(waypoint_actual,2);
+                print("siguiente");
+                printV(waypoint_siguiente,3);
                 print("calculado");
                 printV(waypoint_calculado,4);*/
 
@@ -341,20 +347,21 @@ Vector3f Copter::skirt_get_line_waypoint()
 
     // decides which is the right one depending on the direction o the multicopter (left or right)
     if (follow_left) {
-        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente)==-1) {
-            print("short");
-            return  aux2;
-        } else {
-            print("long");
-            return aux;
-        }
-    } else {
-        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente)==-1) {
-            print("long");
+        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente)==1) {
+            //sentido horario --> derecha
+            print("h-long-right");
             return  aux;
         } else {
-            print("short");
+            print("h-short-left");
+            return aux2;
+        }
+    } else {
+        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente)==1) {
+            print("a-short-right");
             return  aux2;
+        } else {
+            print("a-long-left");
+            return  aux;
         }
     }
 }
@@ -549,6 +556,11 @@ int8_t Copter::get_direction(const Vector3f &waypoint1, const Vector3f &waypoint
     float first_angle = pv_get_bearing_cd(waypoint1, waypoint2);
     float second_angle = pv_get_bearing_cd(waypoint2, destination);
 
+    float neg_first_angle = first_angle + 18000;
+    if(neg_first_angle > 36000) {
+        neg_first_angle -= 36000;
+    }
+
     /*print("first angle");
     print(std::to_string(first_angle));
     print("second angle");
@@ -559,7 +571,7 @@ int8_t Copter::get_direction(const Vector3f &waypoint1, const Vector3f &waypoint
     }
 
     if (first_angle > 0 && first_angle < 18000) {
-        if ((first_angle > second_angle || (second_angle < 36000 && second_angle > 36000 - (18000 - first_angle)))) {
+        if (first_angle > second_angle || (second_angle < 36000 && second_angle > neg_first_angle)) {
             // left
             return -1;
         } else {
@@ -567,20 +579,12 @@ int8_t Copter::get_direction(const Vector3f &waypoint1, const Vector3f &waypoint
             return 1;
         }
     } else {
-        if (first_angle < second_angle || (second_angle > 0 && second_angle < 36000 - (18000 - first_angle))) {
+        if (first_angle < second_angle || (second_angle > 0 && second_angle < neg_first_angle)) {
             // right
-            if(follow_left) {
-                return 1;
-            } else {
-                return -1;
-            }
+            return 1;
         } else {
             // left
-            if(follow_left) {
-                return -1;
-            } else {
-                return 1;
-            }
+            return -1;
         }
     }
 }
