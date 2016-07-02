@@ -1,11 +1,10 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
 #include "Copter.h"
+#include <vector>
 
 #define RIGTH 1
 #define LEFT -1
-
-//std::string a = std::to_string(comm_index);
 
 
 /*
@@ -29,9 +28,13 @@
 // skirt_init - initialise skirt controller
 bool Copter::skirt_init(bool ignore_checks)
 {
+    std::vector<Vector3f> v;//TODO
+
     AP_Mission::Mission_Command c;
+    // check stored commands
     for(uint16_t ind = 0;ind < mission.num_commands();ind++) {
         mission.read_cmd_from_storage(ind,c);
+        v.push_back(pv_location_to_vector(c.content.location));//TODO
         printV(pv_location_to_vector(c.content.location),ind);
         // reject switching to skirt mode if there are commands other tan navigation commands
         if(!mission.is_nav_cmd(c)) {
@@ -41,7 +44,6 @@ bool Copter::skirt_init(bool ignore_checks)
     }
 
     if ((position_ok() && mission.num_commands() > 1) || ignore_checks) {
-        //skirt_mode = Auto_Loiter;
 
         // reject switching to skirt mode if landed with motors armed but first command is not a takeoff (reduce change of flips)
         if (motors.armed() && ap.land_complete && !mission.starts_with_takeoff_cmd()) {
@@ -50,7 +52,6 @@ bool Copter::skirt_init(bool ignore_checks)
         }
 
         // stop ROI from carrying over from previous runs of the mission
-        // To-Do: reset the yaw as part of auto_wp_start when the previous command was not a wp command to remove the need for this special ROI check
         if (auto_yaw_mode == AUTO_YAW_ROI) {
             set_auto_yaw_mode(AUTO_YAW_HOLD);
         }
@@ -163,7 +164,7 @@ void Copter::skirt_circle_run()
     attitude_control.input_euler_angle_roll_pitch_yaw(circle_nav.get_roll(), circle_nav.get_pitch(), circle_nav.get_yaw(),true);
 
     // check if reached destination
-    if(pv_get_horizontal_distance_cm(inertial_nav.get_position(), waypoint_calculado) < 220) {
+    if(pv_get_horizontal_distance_cm(inertial_nav.get_position(), calc_waypoint) < 220) {
         // call the decision maker
         skirt_get_next_waypoint();
     }
@@ -194,16 +195,16 @@ bool Copter::skirt_get_next_command()
     // read next command
     if (mission.read_cmd_from_storage(comm_index,com)) {
         // transform absolute location to a vector from home
-        waypoint_actual = pv_location_to_vector(com.content.location);
+        actual_waypoint = pv_location_to_vector(com.content.location);
 
         // read the following command for route calculation pourposes
         if(comm_index+1 < mission.num_commands()) {
             mission.read_cmd_from_storage(comm_index+1,com);
-            waypoint_siguiente = pv_location_to_vector(com.content.location);
+            next_waypoint = pv_location_to_vector(com.content.location);
         }
         else {
             mission.read_cmd_from_storage(1,com);
-            waypoint_siguiente = pv_location_to_vector(com.content.location);
+            next_waypoint = pv_location_to_vector(com.content.location);
         }
         return true;
     } else {
@@ -220,34 +221,34 @@ void Copter::skirt_get_next_waypoint()
         if (first_run) {
             // first time entering skirt mode
             // calculate the route from vehicle's acual position to first waypoint
-            waypoint_calculado = pv_shorten(skirt_radius, inertial_nav.get_position()/*ahrs.get_home()*/, waypoint_actual);
+            calc_waypoint = pv_shorten(skirt_radius, inertial_nav.get_position()/*ahrs.get_home()*/, actual_waypoint);
             skirt_set_wp_mode();
             first_run = false;
 
         } else {
-            Vector3f v1 = waypoint_calculado - waypoint_anterior;
-            Vector3f v2 = waypoint_actual - waypoint_anterior;
+            Vector3f v1 = calc_waypoint - prev_waypoint;
+            Vector3f v2 = actual_waypoint - prev_waypoint;
 
             // calculate angle in route
             if (degrees(v1.angle(v2)) > 95) {
 
                 // calculate circular route
-                Vector3f temp = waypoint_calculado;
-                waypoint_calculado = pv_get_vector_perp(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
+                Vector3f temp = calc_waypoint;
+                calc_waypoint = pv_get_vector_perp(calc_waypoint, prev_waypoint, actual_waypoint, skirt_radius);
 
                 // check for collisions in route
-                if (skirt_check_collisions(temp, waypoint_calculado)) {
+                if (skirt_check_collisions(temp, calc_waypoint)) {
                     // avoid waypoints and set straight line mode
-                    waypoint_calculado = temp;
+                    calc_waypoint = temp;
                     skirt_get_next_command();
-                    waypoint_calculado = skirt_get_line_waypoint();
+                    calc_waypoint = skirt_get_line_waypoint();
                     skirt_set_wp_mode();
 
                 } else {
                     // set circle mode
-                    circle_nav.set_center(waypoint_anterior);
+                    circle_nav.set_center(prev_waypoint);
                     circle_nav.init(circle_nav.get_center());
-                    wp_nav.set_wp_destination(waypoint_calculado,false);
+                    wp_nav.set_wp_destination(calc_waypoint,false);
                     skirt_mode=Skirt_Circle;
                 }
 
@@ -256,12 +257,12 @@ void Copter::skirt_get_next_waypoint()
                 // set straight line mode
                 Vector3f temp = skirt_get_line_waypoint();
                 // check for collisions in route
-                if (skirt_check_collisions(waypoint_calculado, temp)) {
+                if (skirt_check_collisions(calc_waypoint, temp)) {
                     // avoid waypoints
                     skirt_get_next_command();
-                    waypoint_calculado = skirt_get_line_waypoint();
+                    calc_waypoint = skirt_get_line_waypoint();
                 } else {
-                    waypoint_calculado = temp;
+                    calc_waypoint = temp;
                 }
                 skirt_set_wp_mode();
             }
@@ -277,11 +278,11 @@ void Copter::skirt_get_next_waypoint()
 void Copter::skirt_set_wp_mode()
 {
     // set destination
-    wp_nav.set_wp_destination(waypoint_calculado,false);
+    wp_nav.set_wp_destination(calc_waypoint,false);
     // set controller
     skirt_mode = Skirt_WP;
     // increment variables
-    waypoint_anterior = waypoint_actual;
+    prev_waypoint = actual_waypoint;
     prev_index = comm_index;
     comm_index++;
 }
@@ -296,7 +297,7 @@ bool Copter::skirt_check_collisions(const Vector3f &waypoint1, const Vector3f &w
         temp = pv_location_to_vector(com.content.location);
         // if the distance between the segment waypoint1-waypoint2 and the waypoint in the route is too close, ignore the waypoint
         if(pv_dist_to_segment(temp, waypoint1, waypoint2) < skirt_radius+200 && i!=prev_index) {
-            waypoint_actual = temp;
+            actual_waypoint = temp;
             prev_index = comm_index;
             comm_index = i;
             return true;
@@ -309,12 +310,12 @@ bool Copter::skirt_check_collisions(const Vector3f &waypoint1, const Vector3f &w
 Vector3f Copter::skirt_get_line_waypoint()
 {
     // calcule the two posible destination waypoints
-    Vector3f aux = pv_translate_vector(waypoint_calculado, waypoint_anterior, waypoint_actual, skirt_radius);
-    Vector3f aux2 = pv_translate_vector_collision(waypoint_calculado, waypoint_anterior, waypoint_actual, waypoint_siguiente, skirt_radius);
+    Vector3f aux = pv_translate_vector(calc_waypoint, prev_waypoint, actual_waypoint, skirt_radius);
+    Vector3f aux2 = pv_translate_vector_collision(calc_waypoint, prev_waypoint, actual_waypoint, next_waypoint, skirt_radius);
 
     // decides which is the right one depending on the direction o the multicopter (left or right)
     if (follow_left) {
-        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente) == RIGTH) {
+        if (get_direction(prev_waypoint, actual_waypoint, next_waypoint) == RIGTH) {
             //clockwise --> right : long way
             return  aux;
         } else {
@@ -322,7 +323,7 @@ Vector3f Copter::skirt_get_line_waypoint()
             return aux2;
         }
     } else {
-        if (get_direction(waypoint_anterior, waypoint_actual, waypoint_siguiente) == RIGTH) {
+        if (get_direction(prev_waypoint, actual_waypoint, next_waypoint) == RIGTH) {
             //counterclockwise --> right : short way
             return  aux2;
         } else {

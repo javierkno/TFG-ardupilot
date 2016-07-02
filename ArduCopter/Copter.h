@@ -417,10 +417,10 @@ private:
     AP_Mission::Mission_Command com;
     Location waypoint_loc;
 
-    Vector3f waypoint_siguiente;
-    Vector3f waypoint_actual;
-    Vector3f waypoint_anterior;
-    Vector3f waypoint_calculado;
+    Vector3f next_waypoint;
+    Vector3f actual_waypoint;
+    Vector3f prev_waypoint;
+    Vector3f calc_waypoint;
 
     bool first_run = true;
     //-----------------------------------------------------------------------------------------------
