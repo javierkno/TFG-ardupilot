@@ -28,16 +28,29 @@
 // skirt_init - initialise skirt controller
 bool Copter::skirt_init(bool ignore_checks)
 {
-    std::vector<Vector3f> v;//TODO
+    first_run = true;
+    comm_index = 1;
+    prev_index = 0;
 
-    AP_Mission::Mission_Command c;
+    mission.read_cmd_from_storage(1,com);
+    Vector3f vec = pv_location_to_vector(com.content.location);
+    Vector3f actual_pos = inertial_nav.get_position();
+    float dist;
+    float dist_min = (vec - actual_pos).length();
+
     // check stored commands
-    for(uint16_t ind = 0;ind < mission.num_commands();ind++) {
-        mission.read_cmd_from_storage(ind,c);
-        v.push_back(pv_location_to_vector(c.content.location));//TODO
-        printV(pv_location_to_vector(c.content.location),ind);
+    for(uint16_t ind = 1; ind < mission.num_commands(); ind++) {
+        mission.read_cmd_from_storage(ind,com);
+
+        vec = pv_location_to_vector(com.content.location);
+        if ((dist = (vec - actual_pos).length()) < dist_min) {
+            comm_index = ind;
+            dist_min = dist;
+        }
+
+        //printV(vec,ind);
         // reject switching to skirt mode if there are commands other tan navigation commands
-        if(!mission.is_nav_cmd(c)) {
+        if(!mission.is_nav_cmd(com)) {
             gcs_send_text(MAV_SEVERITY_CRITICAL, "Skirt: All commands must be navigation commands");
             return false;
       }
@@ -69,14 +82,16 @@ bool Copter::skirt_init(bool ignore_checks)
             circle_nav.set_rate(-45);
         }
 
-        first_run = true;
-        comm_index = 1;
-        prev_index = 0;
-        // starts the flight mode calling to the decision maker
-        skirt_get_next_waypoint();
+        // first time entering skirt mode
+        // calculate the route from vehicle's acual position to first waypoint
+        skirt_get_next_command();
+        calc_waypoint = pv_shorten(skirt_radius, actual_pos/*ahrs.get_home()*/, actual_waypoint);
+        // set destination
+        wp_nav.set_wp_destination(calc_waypoint,false);
+        // set mode
+        skirt_set_wp_mode();
 
         return true;
-
     } else {
         return false;
     }
@@ -89,10 +104,10 @@ void Copter::skirt_run()
 {
     // call the correct skirt controller
     switch (skirt_mode) {
+
     case Skirt_WP:
         skirt_wp_run();
         break;
-
     case Skirt_Circle:
         skirt_circle_run();
         break;
@@ -210,62 +225,50 @@ bool Copter::skirt_get_next_command()
     } else {
         return false;
     }
-
 }
 
 // skirt_get_next_waypoint - decides the route to the next waypoint
 void Copter::skirt_get_next_waypoint()
 {
+    first_run = false;
     if (skirt_get_next_command()) {
+        Vector3f v1 = calc_waypoint - prev_waypoint;
+        Vector3f v2 = actual_waypoint - prev_waypoint;
 
-        if (first_run) {
-            // first time entering skirt mode
-            // calculate the route from vehicle's acual position to first waypoint
-            calc_waypoint = pv_shorten(skirt_radius, inertial_nav.get_position()/*ahrs.get_home()*/, actual_waypoint);
-            skirt_set_wp_mode();
-            first_run = false;
+        // calculate angle in route
+        if (degrees(v1.angle(v2)) > 95) {
 
-        } else {
-            Vector3f v1 = calc_waypoint - prev_waypoint;
-            Vector3f v2 = actual_waypoint - prev_waypoint;
+            // calculate circular route
+            Vector3f temp = calc_waypoint;
+            calc_waypoint = pv_get_vector_perp(calc_waypoint, prev_waypoint, actual_waypoint, skirt_radius);
 
-            // calculate angle in route
-            if (degrees(v1.angle(v2)) > 95) {
-
-                // calculate circular route
-                Vector3f temp = calc_waypoint;
-                calc_waypoint = pv_get_vector_perp(calc_waypoint, prev_waypoint, actual_waypoint, skirt_radius);
-
-                // check for collisions in route
-                if (skirt_check_collisions(temp, calc_waypoint)) {
-                    // avoid waypoints and set straight line mode
-                    calc_waypoint = temp;
-                    skirt_get_next_command();
-                    calc_waypoint = skirt_get_line_waypoint();
-                    skirt_set_wp_mode();
-
-                } else {
-                    // set circle mode
-                    circle_nav.set_center(prev_waypoint);
-                    circle_nav.init(circle_nav.get_center());
-                    wp_nav.set_wp_destination(calc_waypoint,false);
-                    skirt_mode=Skirt_Circle;
-                }
-
-            } else {
-                print("line");
-                // set straight line mode
-                Vector3f temp = skirt_get_line_waypoint();
-                // check for collisions in route
-                if (skirt_check_collisions(calc_waypoint, temp)) {
-                    // avoid waypoints
-                    skirt_get_next_command();
-                    calc_waypoint = skirt_get_line_waypoint();
-                } else {
-                    calc_waypoint = temp;
-                }
+            // check for collisions in route
+            if (skirt_check_collisions(temp, calc_waypoint)) {
+                // avoid waypoints and set straight line mode
+                calc_waypoint = temp;
+                skirt_get_next_command();
+                calc_waypoint = skirt_get_line_waypoint();
                 skirt_set_wp_mode();
+            } else {
+                // set circle mode
+                circle_nav.set_center(prev_waypoint);
+                circle_nav.init(circle_nav.get_center());
+                wp_nav.set_wp_destination(calc_waypoint,false);
+                skirt_mode=Skirt_Circle;
             }
+        } else {
+            //print("line");
+            // set straight line mode
+            Vector3f temp = skirt_get_line_waypoint();
+            // check for collisions in route
+            if (skirt_check_collisions(calc_waypoint, temp)) {
+                // avoid waypoints
+                skirt_get_next_command();
+                calc_waypoint = skirt_get_line_waypoint();
+            } else {
+                calc_waypoint = temp;
+            }
+            skirt_set_wp_mode();
         }
     } else {
         // No deberia pasar nunca por aqui
@@ -277,8 +280,12 @@ void Copter::skirt_get_next_waypoint()
 // skirt_set_wp_mode - set the line waypoint mode
 void Copter::skirt_set_wp_mode()
 {
-    // set destination
-    wp_nav.set_wp_destination(calc_waypoint,false);
+    // set waypoint controller target
+    if (!wp_nav.set_wp_destination(calc_waypoint,false)) {
+        // failure to set destination can only be because of missing terrain data
+        failsafe_terrain_on_event();
+        return;
+    }
     // set controller
     skirt_mode = Skirt_WP;
     // increment variables

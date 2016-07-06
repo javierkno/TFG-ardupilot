@@ -868,6 +868,7 @@ private:
     void skirt_run();
     void skirt_wp_run();
     void skirt_circle_run();
+    void skirt_approach_run();
     float skirt_get_heading(void);
     bool skirt_get_next_command();
     void skirt_get_next_waypoint();
