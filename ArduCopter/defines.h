@@ -102,7 +102,8 @@
 #define FLIP        14                  // flip the vehicle on the roll axis
 #define AUTOTUNE    15                  // autotune the vehicle's roll and pitch gains
 #define POSHOLD     16                  // position hold with manual override
-#define NUM_MODES   17
+#define SKIRT       17
+#define NUM_MODES   18
 
 
 // CH_6 Tuning
@@ -190,6 +191,12 @@ enum AutoMode {
     Auto_Circle,
     Auto_Spline,
     Auto_NavGuided
+};
+
+// Skirt modes
+enum SkirtMode {
+    Skirt_WP,
+    Skirt_Circle
 };
 
 // Guided modes

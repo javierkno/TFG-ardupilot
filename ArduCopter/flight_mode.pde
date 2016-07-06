@@ -45,6 +45,10 @@ static bool set_mode(uint8_t mode)
             success = auto_init(ignore_checks);
             break;
 
+        case SKIRT:
+            success = skirt_init(ignore_checks);
+            break;
+
         case CIRCLE:
             success = circle_init(ignore_checks);
             break;
@@ -151,6 +155,10 @@ static void update_flight_mode()
             auto_run();
             break;
 
+        case SKIRT:
+            skirt_run();
+            break;
+
         case CIRCLE:
             circle_run();
             break;
@@ -227,7 +235,7 @@ static void exit_mode(uint8_t old_control_mode, uint8_t new_control_mode)
         // this assumes all manual flight modes use get_pilot_desired_throttle to translate pilot input to output throttle
         set_accel_throttle_I_from_pilot_throttle(get_pilot_desired_throttle(g.rc_3.control_in));
     }
-    
+
 #if FRAME_CONFIG == HELI_FRAME
     // firmly reset the flybar passthrough to false when exiting acro mode.
     if (old_control_mode == ACRO) {
@@ -333,4 +341,3 @@ print_flight_mode(AP_HAL::BetterStream *port, uint8_t mode)
         break;
     }
 }
-
