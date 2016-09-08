@@ -21,7 +21,6 @@
 
 /*
  *  While in the skirt flight mode only navigation commands can be run.
- *  Code in this file implements the navigation commands
  */
 
 
@@ -297,13 +296,14 @@ void Copter::skirt_set_wp_mode()
 // skirt_check_collisions - checks possible collisions in the actual route and avoids them
 bool Copter::skirt_check_collisions(const Vector3f &waypoint1, const Vector3f &waypoint2)
 {
+    int threshold = 200;
     Vector3f temp;
     // read every command following actual command
     for(uint16_t i=mission.num_commands()-1; i>comm_index; i--) {
         mission.read_cmd_from_storage(i,com);
         temp = pv_location_to_vector(com.content.location);
         // if the distance between the segment waypoint1-waypoint2 and the waypoint in the route is too close, ignore the waypoint
-        if(pv_dist_to_segment(temp, waypoint1, waypoint2) < skirt_radius+200 && i!=prev_index) {
+        if(pv_dist_to_segment(temp, waypoint1, waypoint2) < skirt_radius+threshold && i!=prev_index) {
             actual_waypoint = temp;
             prev_index = comm_index;
             comm_index = i;
