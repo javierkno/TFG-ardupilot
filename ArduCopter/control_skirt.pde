@@ -23,7 +23,7 @@
 
 
 bool follow_left = true;
-float skirt_radius = 50 * 100;
+float skirt_radius = 5 * 100;
 SkirtMode skirt_mode;
 
 uint16_t comm_index = 1;
